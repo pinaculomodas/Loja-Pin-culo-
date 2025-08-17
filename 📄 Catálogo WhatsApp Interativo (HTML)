@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Catálogo Interativo • WhatsApp</title>
+<style>
+  :root {
+    --green: #25D366;
+    --dark: #111;
+    --muted: #6b7280;
+    --bg: #f8fafc;
+    --card: #ffffff;
+    --accent: #0ea5e9;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin:0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, 'Noto Sans', sans-serif;
+    background: var(--bg); color:#111;
+  }
+  header {
+    position: sticky; top:0; z-index: 10; background: #fff; border-bottom: 1px solid #e5e7eb;
+    display:flex; align-items:center; justify-content: space-between; padding: 12px 16px;
+  }
+  .brand { font-weight: 700; letter-spacing:.2px; }
+  .cart-btn {
+    display:inline-flex; align-items:center; gap:8px; background: var(--green); color:#fff; border:none;
+    padding:10px 14px; border-radius:12px; font-weight:700; cursor:pointer;
+  }
+  .cart-count { background:#fff; color:var(--green); padding:2px 8px; border-radius:999px; font-size:12px; }
+  .grid {
+    display:grid; grid-template-columns: repeat(4, 1fr); gap:14px; padding:14px; max-width:1280px; margin: 0 auto;
+  }
+  @media (max-width: 1024px) { .grid { grid-template-columns: repeat(3, 1fr); } }
+  @media (max-width: 780px) { .grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 480px) { .grid { grid-template-columns: repeat(1, 1fr); } }
+  .card {
+    background: var(--card); border:1px solid #e5e7eb; border-radius:14px; overflow:hidden; display:flex; flex-direction:column;
+  }
+  .card img { width:100%; aspect-ratio:1/1; object-fit:cover; display:block; }
+  .card .info { padding:10px 12px 12px; display:flex; flex-direction:column; gap:6px; }
+  .name { font-weight:700; font-size:14px; line-height:1.2; }
+  .price { color: var(--dark); font-weight:700; }
+  .muted { color: var(--muted); font-size:12px; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; }
+  .btn {
+    appearance:none; border:1px solid #e5e7eb; background:#fff; padding:8px 10px; border-radius:10px; cursor:pointer;
+    font-weight:600;
+  }
+  .btn.primary { background: var(--green); color:#fff; border-color: var(--green); }
+  .btn.accent { background: var(--accent); color:#fff; border-color: var(--accent); }
+  /* Modal */
+  .modal-backdrop {
+    position: fixed; inset:0; background: rgba(0,0,0,.4); display:none; align-items:flex-end;
+  }
+  .modal { background:#fff; width:100%; border-top-left-radius:16px; border-top-right-radius:16px; padding:16px; }
+  .modal h3 { margin:0 0 8px 0; }
+  .sizes { display:grid; grid-template-columns: repeat(4, 1fr); gap:10px; }
+  .qtybox { display:flex; align-items:center; justify-content:space-between; border:1px solid #e5e7eb; border-radius:10px; padding:6px 8px; }
+  .qtybox button { width:30px; height:30px; border:none; border-radius:8px; background:#f1f5f9; font-weight:700; cursor:pointer; }
+  .footer-actions { display:flex; gap:10px; margin-top:12px; }
+  aside.cart-panel {
+    position: fixed; right:0; top:0; height:100%; width: min(420px, 90vw); background:#fff; border-left:1px solid #e5e7eb;
+    transform: translateX(100%); transition: .25s ease; z-index: 20; display:flex; flex-direction:column;
+  }
+  aside.cart-panel.open { transform: translateX(0); }
+  .cart-header { padding:14px; border-bottom:1px solid #e5e7eb; display:flex; justify-content:space-between; align-items:center; }
+  .cart-body { flex:1; overflow:auto; padding:12px; display:flex; flex-direction:column; gap:10px; }
+  .cart-item { border:1px solid #e5e7eb; border-radius:10px; padding:10px; display:flex; gap:10px; }
+  .cart-item img { width:64px; height:64px; object-fit:cover; border-radius:8px; }
+  .cart-footer { border-top:1px solid #e5e7eb; padding:12px; }
+  .small { font-size:12px; color:var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">Catálogo • Pináculo</div>
+  <button class="cart-btn" id="openCart">🛒 Carrinho <span class="cart-count" id="cartCount">0</span></button>
+</header>
+
+<main class="grid" id="grid"></main>
+
+<!-- Modal de tamanhos -->
+<div class="modal-backdrop" id="backdrop">
+  <div class="modal" id="modal">
+    <h3 id="modalTitle">Escolha tamanhos</h3>
+    <div class="muted" id="modalSubtitle"></div>
+    <div class="sizes" id="sizes"></div>
+    <div class="footer-actions">
+      <button class="btn" id="cancelModal">Cancelar</button>
+      <button class="btn primary" id="addToCart">Adicionar ao Carrinho</button>
+    </div>
+  </div>
+</div>
+
+<!-- Painel do Carrinho -->
+<aside class="cart-panel" id="cartPanel">
+  <div class="cart-header">
+    <strong>Seu Carrinho</strong>
+    <button class="btn" id="closeCart">Fechar</button>
+  </div>
+  <div class="cart-body" id="cartList"></div>
+  <div class="cart-footer">
+    <div class="small" id="cartHint">Revise os itens e envie pelo WhatsApp.</div>
+    <button class="btn primary" id="sendWhats">Enviar pedido no WhatsApp</button>
+  </div>
+</aside>
+
+<script>
+const PHONE = "5511981999882";
+const PRODUCTS = [{"id": "PROD-01", "name": "Produto 01", "price": "R$ 100,90", "img": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NDAiIGhlaWdodD0iNjQwIj4KPHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iI2U1ZTdlYiIvPgo8dGV4dCB4PSI1MCUiIHk9IjUwJSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjM2IiBmaWxsPSIjMTExIj5Qcm9kdXRvIDAxPC90ZXh0Pgo8L3N2Zz4="}, {"id": "PROD-02", "name": "Produto 02", "price": "R$ 101,90", "img": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NDAiIGhlaWdodD0iNjQwIj4KPHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iI2U1ZTdlYiIvPgo8dGV4dCB4PSI1MCUiIHk9IjUwJSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjM2IiBmaWxsPSIjMTExIj5Qcm9kdXRvIDAyPC90ZXh0Pgo8L3N2Zz4="}, {"id": "PROD-03", "name": "Produto 03", "price": "R$ 102,90", "img": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NDAiIGhlaWdodD0iNjQwIj4KPHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iI2U1ZTdlYiIvPgo8dGV4dCB4PSI1MCUiIHk9IjUwJSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjM2IiBmaWxsPSIjMTExIj5Qcm9kdXRvIDAzPC90ZXh0Pgo8L3N2Zz4="}, {"id": "PROD-04", "name": "Produto 04", "price": "R$ 103,90", "img": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NDAiIGhlaWdodD0iNjQwIj4KPHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iI2U1ZTdlYiIvPgo8dGV4dCB4PSI1MCUiIHk9IjUwJSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjM2IiBmaWxsPSIjMTExIj5Qcm9kdXRvIDA0PC90ZXh0Pgo8L3N2Zz4="}, {"id": "PROD-05", "name": "Produto 05", "price": "R$ 104,90", "img": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NDAiIGhlaWdodD0iNjQwIj4KPHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iI2U1ZTdlYiIvPgo8dGV4dCB4PSI1MCUiIHk9IjUwJSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjM2IiBmaWxsPSIjMTExIj5Qcm9kdXRvIDA1PC90ZXh0Pgo8L3N2Zz4="}, {"id": "PROD-06", "name": "Produto 06", "price": "R$ 105,90", "img": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NDAiIGhlaWdodD0iNjQwIj4KPHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iI2U1ZTdlYiIvPgo8dGV4dCB4PSI1MCUiIHk9IjUwJSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjM2IiBmaWxsPSIjMTExIj5Qcm9kdXRvIDA2PC90ZXh0Pgo8L3N2Zz4="}, {"id": "PROD-07", "name": "Produto 07", "price": "R$ 106,90", "img": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NDAiIGhlaWdodD0iNjQwIj4KPHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iI2U1ZTdlYiIvPgo8dGV4dCB4PSI1MCUiIHk9IjUwJSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjM2IiBmaWxsPSIjMTExIj5Qcm9kdXRvIDA3PC90ZXh0Pgo8L3N2Zz4="}, {"id": "PROD-08", "name": "Produto 08", "price": "R$ 107,90", "img": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NDAiIGhlaWdodD0iNjQwIj4KPHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iI2U1ZTdlYiIvPgo8dGV4dCB4PSI1MCUiIHk9IjUwJSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjM2IiBmaWxsPSIjMTExIj5Qcm9kdXRvIDA4PC90ZXh0Pgo8L3N2Zz4="}, {"id": "PROD-09", "name": "Produto 09", "price": "R$ 108,90", "img": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NDAiIGhlaWdodD0iNjQwIj4KPHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iI2U1ZTdlYiIvPgo8dGV4dCB4PSI1MCUiIHk9IjUwJSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjM2IiBmaWxsPSIjMTExIj5Qcm9kdXRvIDA5PC90ZXh0Pgo8L3N2Zz4="}, {"id": "PROD-10", "name": "Produto 10", "price": "R$ 109,90", "img": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NDAiIGhlaWdodD0iNjQwIj4KPHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iI2U1ZTdlYiIvPgo8dGV4dCB4PSI1MCUiIHk9IjUwJSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjM2IiBmaWxsPSIjMTExIj5Qcm9kdXRvIDEwPC90ZXh0Pgo8L3N2Zz4="}, {"id": "PROD-11", "name": "Produto 11", "price": "R$ 110,90", "img": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NDAiIGhlaWdodD0iNjQwIj4KPHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iI2U1ZTdlYiIvPgo8dGV4dCB4PSI1MCUiIHk9IjUwJSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjM2IiBmaWxsPSIjMTExIj5Qcm9kdXRvIDExPC90ZXh0Pgo8L3N2Zz4="}, {"id": "PROD-12", "name": "Produto 12", "price": "R$ 111,90", "img": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NDAiIGhlaWdodD0iNjQwIj4KPHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iI2U1ZTdlYiIvPgo8dGV4dCB4PSI1MCUiIHk9IjUwJSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjM2IiBmaWxsPSIjMTExIj5Qcm9kdXRvIDEyPC90ZXh0Pgo8L3N2Zz4="}, {"id": "PROD-13", "name": "Produto 13", "price": "R$ 112,90", "img": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NDAiIGhlaWdodD0iNjQwIj4KPHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iI2U1ZTdlYiIvPgo8dGV4dCB4PSI1MCUiIHk9IjUwJSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjM2IiBmaWxsPSIjMTExIj5Qcm9kdXRvIDEzPC90ZXh0Pgo8L3N2Zz4="}, {"id": "PROD-14", "name": "Produto 14", "price": "R$ 113,90", "img": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NDAiIGhlaWdodD0iNjQwIj4KPHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iI2U1ZTdlYiIvPgo8dGV4dCB4PSI1MCUiIHk9IjUwJSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjM2IiBmaWxsPSIjMTExIj5Qcm9kdXRvIDE0PC90ZXh0Pgo8L3N2Zz4="}, {"id": "PROD-15", "name": "Produto 15", "price": "R$ 114,90", "img": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NDAiIGhlaWdodD0iNjQwIj4KPHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iI2U1ZTdlYiIvPgo8dGV4dCB4PSI1MCUiIHk9IjUwJSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjM2IiBmaWxsPSIjMTExIj5Qcm9kdXRvIDE1PC90ZXh0Pgo8L3N2Zz4="}, {"id": "PROD-16", "name": "Produto 16", "price": "R$ 115,90", "img": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NDAiIGhlaWdodD0iNjQwIj4KPHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iI2U1ZTdlYiIvPgo8dGV4dCB4PSI1MCUiIHk9IjUwJSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjM2IiBmaWxsPSIjMTExIj5Qcm9kdXRvIDE2PC90ZXh0Pgo8L3N2Zz4="}];
+const SIZES = ["P","M","G","GG"];
+
+const grid = document.getElementById('grid');
+const modalBackdrop = document.getElementById('backdrop');
+const modalTitle = document.getElementById('modalTitle');
+const modalSubtitle = document.getElementById('modalSubtitle');
+const sizesBox = document.getElementById('sizes');
+const addToCartBtn = document.getElementById('addToCart');
+const cancelModalBtn = document.getElementById('cancelModal');
+const cartPanel = document.getElementById('cartPanel');
+const openCartBtn = document.getElementById('openCart');
+const closeCartBtn = document.getElementById('closeCart');
+const cartList = document.getElementById('cartList');
+const cartCount = document.getElementById('cartCount');
+const sendWhatsBtn = document.getElementById('sendWhats');
+
+let currentProduct = null;
+let sizeQty = {}; // ex: {P:1, M:0, ...}
+let CART = []; // array de itens: {id, name, img, price, sizes: {P:1,M:2...}}
+
+// Render grid 4x4
+function renderGrid() {
+  grid.innerHTML = '';
+  PRODUCTS.forEach(p => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+      <img src="${p.img}" alt="${p.name}"/>
+      <div class="info">
+        <div class="name">${p.name}</div>
+        <div class="row" style="justify-content:space-between; align-items:center;">
+          <div class="price">${p.price}</div>
+          <button class="btn accent" data-id="${p.id}">Tamanhos</button>
+        </div>
+        <div class="muted">Código: ${p.id}</div>
+      </div>
+    `;
+    card.querySelector('button').addEventListener('click', () => openSizes(p));
+    grid.appendChild(card);
+  });
+}
+
+function openSizes(p) {
+  currentProduct = p;
+  modalTitle.textContent = `Tamanhos para: ${p.name}`;
+  modalSubtitle.textContent = `Código: ${p.id}`;
+  sizeQty = {};
+  SIZES.forEach(s => sizeQty[s]=0);
+  sizesBox.innerHTML = '';
+  SIZES.forEach(s => {
+    const wrap = document.createElement('div');
+    wrap.className = 'qtybox';
+    wrap.innerHTML = `
+      <strong>${s}</strong>
+      <div>
+        <button data-act="dec" data-size="${s}">-</button>
+        <span id="q_${s}" style="display:inline-block; width:28px; text-align:center;">0</span>
+        <button data-act="inc" data-size="${s}">+</button>
+      </div>
+    `;
+    wrap.addEventListener('click', (e) => {
+      const btn = e.target.closest('button');
+      if(!btn) return;
+      const sz = btn.getAttribute('data-size');
+      const act = btn.getAttribute('data-act');
+      if(act==='inc') sizeQty[sz]++;
+      if(act==='dec') sizeQty[sz] = Math.max(0, sizeQty[sz]-1);
+      document.getElementById('q_'+sz).textContent = sizeQty[sz];
+    });
+    sizesBox.appendChild(wrap);
+  });
+  modalBackdrop.style.display='flex';
+}
+
+cancelModalBtn.addEventListener('click', () => modalBackdrop.style.display='none');
+
+addToCartBtn.addEventListener('click', () => {
+  if(!currentProduct) return;
+  // verifica se tem ao menos uma quantidade > 0
+  const total = Object.values(sizeQty).reduce((a,b)=>a+b,0);
+  if(total === 0) { alert('Escolha ao menos 1 unidade.'); return; }
+  // push to cart
+  CART.push({
+    id: currentProduct.id,
+    name: currentProduct.name,
+    img: currentProduct.img,
+    price: currentProduct.price,
+    sizes: {...sizeQty}
+  });
+  updateCartUI();
+  modalBackdrop.style.display='none';
+});
+
+openCartBtn.addEventListener('click', () => cartPanel.classList.add('open'));
+closeCartBtn.addEventListener('click', () => cartPanel.classList.remove('open'));
+
+function updateCartUI() {
+  // count
+  let count = 0;
+  CART.forEach(item => {
+    count += Object.values(item.sizes).reduce((a,b)=>a+b,0);
+  });
+  cartCount.textContent = count;
+
+  // list
+  cartList.innerHTML = '';
+  if(CART.length===0) {
+    cartList.innerHTML = '<div class="muted">Seu carrinho está vazio.</div>';
+    return;
+  }
+  CART.forEach((item, idx) => {
+    const div = document.createElement('div');
+    div.className = 'cart-item';
+    const sizesText = Object.entries(item.sizes)
+      .filter(([k,v])=>v>0)
+      .map(([k,v])=>`${k}: ${v}`).join(' | ');
+    div.innerHTML = `
+      <img src="${item.img}" alt="${item.name}"/>
+      <div style="flex:1">
+        <div style="font-weight:700">${item.name}</div>
+        <div class="small">Código: ${item.id} • ${item.price}</div>
+        <div>${sizesText}</div>
+      </div>
+      <button class="btn" data-rm="${idx}">Remover</button>
+    `;
+    div.querySelector('button').addEventListener('click', () => {
+      CART.splice(idx,1);
+      updateCartUI();
+    });
+    cartList.appendChild(div);
+  });
+}
+
+function buildWhatsMessage() {
+  if(CART.length===0) return 'Olá! Quero fazer um pedido.';
+  let lines = ['Olá! Quero fazer um pedido:', ''];
+  CART.forEach((item, i) => {
+    lines.push(`*${i+1}. ${item.name}* (Código: ${item.id})`);
+    const sizesText = Object.entries(item.sizes)
+      .filter(([k,v])=>v>0)
+      .map(([k,v])=>`${k}=${v}`).join(', ');
+    lines.push(`Tamanhos: ${sizesText}`);
+    lines.push(`Preço: ${item.price}`);
+    lines.push(`Imagem: ${item.img}`);
+    lines.push('');
+  });
+  lines.push('Endereço/Retirada: ');
+  lines.push('Forma de pagamento: ');
+  return lines.join('\n');
+}
+
+sendWhatsBtn.addEventListener('click', () => {
+  const msg = encodeURIComponent(buildWhatsMessage());
+  const url = `https://wa.me/${PHONE}?text=${msg}`;
+  window.location.href = url;
+});
+
+// init
+renderGrid();
+updateCartUI();
+</script>
+</body>
+</html>
