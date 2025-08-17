@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Loja Pináculo — Revenda e Fabricação</title>
+<meta name="description" content="Somos fabricantes e revendedores de uma das maiores marcas de roupas masculinas e femininas. Modelos variados, qualidade premium e preços acessíveis para todo tipo de fornecedor.">
+<link rel="icon" href="https://img.icons8.com/color/48/t-shirt.png">
+<style>
+  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto;background:#0f0f10;color:#fff}
+  header{padding:20px;text-align:center;background:#141519}
+  header h1{margin:0;font-size:20px}
+  header p{color:#bbb;font-size:14px;margin:6px 0 0}
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;padding:12px}
+  .card{background:#1a1b1e;border-radius:12px;overflow:hidden;border:1px solid #24262b}
+  .thumb{aspect-ratio:1/1;background:#222 center/cover no-repeat}
+  .body{padding:10px}
+  .title{font-weight:600;font-size:14px;margin:0 0 6px}
+  .pill{font-size:11px;padding:3px 6px;border-radius:999px;background:#2a2c31;color:#aaa;margin-right:4px}
+  .btn{width:100%;padding:10px;border:0;border-radius:10px;background:#2f7cff;color:#fff;font-weight:600}
+  .cartbar{position:fixed;bottom:0;left:0;right:0;background:#101114;border-top:1px solid #24262b;display:flex;align-items:center;gap:10px;padding:10px}
+  .cartbar .sum{flex:1}
+  .whats{background:#25d366;color:#092;border:0;border-radius:10px;padding:12px 14px;font-weight:800}
+  .modal{position:fixed;inset:0;display:none;place-items:end;background:rgba(0,0,0,.5)}
+  .sheet{background:#141519;border-top-left-radius:16px;border-top-right-radius:16px;width:100%;padding:14px;border-top:1px solid #24262b}
+  .options,.sizes{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+  .chip,.sz{padding:8px 12px;border-radius:8px;background:#2a2c31;color:#eee;border:1px solid #31343a;cursor:pointer}
+  .chip[data-active="true"],.sz[data-active="true"]{outline:2px solid #2f7cff}
+  .qty{display:flex;align-items:center;gap:10px}
+  .qty button{width:34px;height:34px;border-radius:8px;border:1px solid #31343a;background:#1a1b1e;color:#fff;font-size:18px}
+  .add{width:100%;margin-top:10px;padding:12px;background:#2f7cff;color:#fff;border:0;border-radius:12px;font-weight:800}
+</style>
+</head>
+<body>
+  <header>
+    <h1>Loja Pináculo</h1>
+    <p>Revendedores e Fabricantes — Moda Masculina e Feminina</p>
+    <p><b>R$59 Varejo</b> | <b>R$49 Atacado</b> (mín. 6 peças + grade P/M/G/GG)</p>
+  </header>
+
+  <main class="grid" id="produtos"></main>
+
+  <div class="cartbar">
+    <div class="sum">
+      <strong>Total: <span id="total">R$ 0,00</span></strong>
+      <span id="resumo">0 itens</span>
+    </div>
+    <button class="whats" id="enviar">WhatsApp</button>
+  </div>
+
+  <div class="modal" id="modal">
+    <div class="sheet">
+      <h3 id="sheetTitle"></h3>
+      <div class="options" id="optTipo">
+        <button class="chip" data-value="varejo" data-active="true">Varejo — R$59</button>
+        <button class="chip" data-value="atacado">Atacado — R$49</button>
+      </div>
+      <div class="sizes" id="sizes"></div>
+      <div class="qty">
+        <button id="menos">−</button>
+        <div>Qtd: <b id="qtdView">1</b></div>
+        <button id="mais">+</button>
+      </div>
+      <button class="add" id="addBtn">Adicionar</button>
+    </div>
+  </div>
+
+<script>
+const PRECO_VAREJO=59, PRECO_ATACADO=49, SIZES=["P","M","G","GG"];
+const produtos=[
+ {id:"p1",nome:"Moletom Verde Premium",img:"https://via.placeholder.com/400x400?text=Moletom+Verde"},
+ {id:"p2",nome:"Moletom Preto Faixa Cinza",img:"https://via.placeholder.com/400x400?text=Moletom+Preto"},
+ {id:"p3",nome:"Moletom Marrom",img:"https://via.placeholder.com/400x400?text=Moletom+Marrom"},
+ {id:"p4",nome:"Moletom Azul Royal",img:"https://via.placeholder.com/400x400?text=Moletom+Azul"},
+];
+const carrinho=[];
+let modalState={prod:null,tipo:"varejo",size:"P",qtd:1};
+
+function fmt(n){return n.toLocaleString("pt-BR",{style:"currency",currency:"BRL"});}
+function atualizar(){document.getElementById("total").textContent=fmt(carrinho.reduce((s,i)=>s+i.qtd*i.preco,0));
+document.getElementById("resumo").textContent=`${carrinho.reduce((s,i)=>s+i.qtd,0)} itens`;}
+
+function renderProdutos(){
+ const wrap=document.getElementById("produtos"); wrap.innerHTML="";
+ produtos.forEach(p=>{
+   const el=document.createElement("div"); el.className="card";
+   el.innerHTML=`<div class="thumb" style="background-image:url('${p.img}')"></div>
+     <div class="body"><h3 class="title">${p.nome}</h3>
+     <span class="pill">R$59 varejo</span><span class="pill">R$49 atacado</span>
+     <button class="btn">Escolher modelo</button></div>`;
+   el.querySelector(".btn").onclick=()=>abrirModal(p);
+   wrap.appendChild(el);
+ });
+}
+
+const modal=document.getElementById("modal"),sheetTitle=document.getElementById("sheetTitle"),
+sizesDiv=document.getElementById("sizes"),optTipo=document.getElementById("optTipo"),
+qtdView=document.getElementById("qtdView");
+
+function abrirModal(p){modalState={prod:p,tipo:"varejo",size:"P",qtd:1};
+ sheetTitle.textContent=p.nome;
+ sizesDiv.innerHTML=""; SIZES.forEach((s,i)=>{let b=document.createElement("button");
+ b.className="sz"; b.textContent=s; b.dataset.active=i==0; b.onclick=()=>{[...sizesDiv.children].forEach(x=>x.dataset.active=false); b.dataset.active=true; modalState.size=s;};
+ sizesDiv.appendChild(b);});
+ [...optTipo.children].forEach((c,i)=>c.dataset.active=i==0);
+ qtdView.textContent="1"; modal.style.display="grid";}
+
+modal.onclick=e=>{if(e.target===modal)modal.style.display="none";}
+optTipo.onclick=e=>{if(!e.target.dataset.value)return;[...optTipo.children].forEach(c=>c.dataset.active=false);
+ e.target.dataset.active=true; modalState.tipo=e.target.dataset.value;}
+document.getElementById("menos").onclick=()=>{if(modalState.qtd>1){modalState.qtd--;qtdView.textContent=modalState.qtd;}};
+document.getElementById("mais").onclick=()=>{modalState.qtd++;qtdView.textContent=modalState.qtd;};
+document.getElementById("addBtn").onclick=()=>{let preco=modalState.tipo==="varejo"?PRECO_VAREJO:PRECO_ATACADO;
+ carrinho.push({nome:modalState.prod.nome,tipo:modalState.tipo,size:modalState.size,qtd:modalState.qtd,preco});
+ atualizar(); modal.style.display="none";};
+
+document.getElementById("enviar").onclick=()=>{
+ if(carrinho.length===0){alert("Carrinho vazio.");return;}
+ if(carrinho.some(i=>i.tipo==="atacado")){
+   const atac=carrinho.filter(i=>i.tipo==="atacado");
+   const total=atac.reduce((s,i)=>s+i.qtd,0);
+   const porSize=Object.fromEntries(SIZES.map(s=>[s,0])); atac.forEach(i=>porSize[i.size]+=i.qtd);
+   const faltam=SIZES.filter(s=>porSize[s]<1);
+   if(total<6||faltam.length){alert("Atacado precisa de 6+ peças e pelo menos 1 de cada P/M/G/GG");return;}
+ }
+ const linhas=carrinho.map((i,n)=>`${n+1}. ${i.nome} - ${i.tipo} - Tam ${i.size} - ${i.qtd}un - ${fmt(i.preco)}`);
+ const total=carrinho.reduce((s,i)=>s+i.qtd*i.preco,0);
+ const msg=encodeURIComponent("*Pedido Loja Pináculo*\n"+linhas.join("\n")+"\nTotal: "+fmt(total));
+ window.open(`https://wa.me/5511981999882?text=${msg}`,"_blank");
+};
+
+renderProdutos(); atualizar();
+</script>
+</body>
+</html>
